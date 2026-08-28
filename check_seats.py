@@ -2,7 +2,7 @@ import os
 import json
 import requests
 
-CRN_TO_WATCH = "10915"
+CRN_TO_WATCH = "10221"
 SEARCH_URL = "https://courseofferings.colgate.edu/v1/courses/search?keyword=&termCode=202601&coreArea=&inquiryArea=&liberalArtsPracticeArea=&meetTimeMorning=&meetTimeAfternoon=&meetTimeEvening=&openCoursesOnly="
 STATE_FILE = "state.json"
 
