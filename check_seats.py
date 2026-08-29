@@ -73,12 +73,12 @@ def main():
     last_status = load_last_status()
     print(f"{course['DISPLAY_KEY']}: {current_status} (seats: {course['SEATS']})")
 
-    if last_status is not None and last_status == "Closed" and current_status != "Closed":
-        send_notification(
-            f"Seat open: {course['DISPLAY_KEY']}",
-            f"Status changed to \"{current_status}\". Seats: {course['SEATS']}. Go register now!",
-            urgent=True,
-        )
+    urgent = current_status != "Closed"
+    send_notification(
+        f"{course['DISPLAY_KEY']}: {current_status}",
+        f"Seats: {course['SEATS']}" + (" — GO REGISTER NOW!" if urgent else ""),
+        urgent=urgent,
+    )
 
     save_last_status(current_status)
 
