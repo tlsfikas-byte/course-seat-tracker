@@ -46,7 +46,19 @@ def main():
         return
 
     response.raise_for_status()
-    courses = response.json()
+
+    try:
+        courses = response.json()
+    except ValueError:
+        # Got a 200 OK but the body wasn't JSON - almost always means the
+        # session cookie expired and we got redirected to an HTML login page instead.
+        send_notification(
+            "Seat tracker: cookie expired",
+            "Got a non-JSON response (likely a login page). Log in and paste a fresh cookie into the COOKIE_HEADER secret.",
+            urgent=True,
+        )
+        return
+
     course = next((c for c in courses if c["CRN"] == CRN_TO_WATCH), None)
 
     if course is None:
