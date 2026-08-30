@@ -1,10 +1,12 @@
 import os
 import json
+import time
 import requests
 
 CRN_TO_WATCH = "10221"
 SEARCH_URL = "https://courseofferings.colgate.edu/v1/courses/search?keyword=&termCode=202601&coreArea=&inquiryArea=&liberalArtsPracticeArea=&meetTimeMorning=&meetTimeAfternoon=&meetTimeEvening=&openCoursesOnly="
 STATE_FILE = "state.json"
+HOURLY_INTERVAL_SECONDS = 60 * 60  # only send a routine update this often
 
 COOKIE_HEADER = os.environ["COOKIE_HEADER"]  # full raw Cookie header string
 NTFY_TOPIC = os.environ["NTFY_TOPIC"]
@@ -17,21 +19,21 @@ def send_notification(title, message, urgent=False):
         headers={
             "Title": title,
             "Priority": "urgent" if urgent else "default",
-            "Tags": "rotating_light" if urgent else "warning",
+            "Tags": "rotating_light" if urgent else "information_source",
         },
     )
 
 
-def load_last_status():
+def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
-            return json.load(f).get("lastStatus")
-    return None
+            return json.load(f)
+    return {"lastStatus": None, "lastNotifyTime": 0}
 
 
-def save_last_status(status):
+def save_state(state):
     with open(STATE_FILE, "w") as f:
-        json.dump({"lastStatus": status}, f)
+        json.dump(state, f)
 
 
 def main():
@@ -39,8 +41,8 @@ def main():
 
     if response.status_code in (401, 403):
         send_notification(
-            "Seat tracker: cookie expired",
-            "Your Colgate session cookie expired. Log in and paste a fresh one into the COOKIE_HEADER secret.",
+            "Cookie expired",
+            "Log in and update the COOKIE_HEADER secret.",
             urgent=True,
         )
         return
@@ -50,11 +52,9 @@ def main():
     try:
         courses = response.json()
     except ValueError:
-        # Got a 200 OK but the body wasn't JSON - almost always means the
-        # session cookie expired and we got redirected to an HTML login page instead.
         send_notification(
-            "Seat tracker: cookie expired",
-            "Got a non-JSON response (likely a login page). Log in and paste a fresh cookie into the COOKIE_HEADER secret.",
+            "Cookie expired",
+            "Got a login page instead of data — update the COOKIE_HEADER secret.",
             urgent=True,
         )
         return
@@ -63,24 +63,39 @@ def main():
 
     if course is None:
         send_notification(
-            "Seat tracker: course not found",
-            f"CRN {CRN_TO_WATCH} wasn't in the search results. The term code or filters may need updating.",
+            "Course not found",
+            f"CRN {CRN_TO_WATCH} missing from results — check term code.",
             urgent=True,
         )
         return
 
     current_status = course["STATUS"]
-    last_status = load_last_status()
+    state = load_state()
+    last_status = state["lastStatus"]
+    last_notify_time = state["lastNotifyTime"]
+    now = time.time()
+
     print(f"{course['DISPLAY_KEY']}: {current_status} (seats: {course['SEATS']})")
 
-    urgent = current_status != "Closed"
-    send_notification(
-        f"{course['DISPLAY_KEY']}: {current_status}",
-        f"Seats: {course['SEATS']}" + (" — GO REGISTER NOW!" if urgent else ""),
-        urgent=urgent,
-    )
+    status_changed = last_status is not None and current_status != last_status
 
-    save_last_status(current_status)
+    if status_changed:
+        urgent = current_status != "Closed"
+        send_notification(
+            course["DISPLAY_KEY"],
+            f"{current_status} — {course['SEATS']}",
+            urgent=urgent,
+        )
+        state["lastNotifyTime"] = now
+    elif now - last_notify_time >= HOURLY_INTERVAL_SECONDS:
+        send_notification(
+            course["DISPLAY_KEY"],
+            f"{current_status} — {course['SEATS']}",
+        )
+        state["lastNotifyTime"] = now
+
+    state["lastStatus"] = current_status
+    save_state(state)
 
 
 if __name__ == "__main__":
