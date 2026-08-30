@@ -27,7 +27,11 @@ def send_notification(title, message, urgent=False):
 def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
-            return json.load(f)
+            data = json.load(f)
+            return {
+                "lastStatus": data.get("lastStatus"),
+                "lastNotifyTime": data.get("lastNotifyTime", 0),
+            }
     return {"lastStatus": None, "lastNotifyTime": 0}
 
 
