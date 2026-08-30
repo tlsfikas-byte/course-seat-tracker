@@ -19,7 +19,6 @@ def send_notification(title, message, urgent=False):
         headers={
             "Title": title,
             "Priority": "urgent" if urgent else "default",
-            "Tags": "rotating_light" if urgent else "information_source",
         },
     )
 
